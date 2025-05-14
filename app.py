@@ -37,50 +37,52 @@ def predict_transaction(sender_upi, receiver_upi, amount):
 st.set_page_config(page_title="UPI Fraud Detection", layout="wide")
 st.title("🔒 UPI Fraud Detection using Autoencoder")
 
-# File upload section
-uploaded_file = st.file_uploader("Upload a CSV file with transactions", type="csv")
+# User selects approach
+approach = st.radio("Choose Input Method:", ("📁 CSV Upload", "📝 Manual Entry"))
 
-if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file)
-    df = df.drop(columns=["Transaction ID", "Timestamp", "Sender Name", "Receiver Name"])
-    df['Sender UPI ID'] = pd.factorize(df['Sender UPI ID'])[0]
-    df['Receiver UPI ID'] = pd.factorize(df['Receiver UPI ID'])[0]
+if approach == "📁 CSV Upload":
+    uploaded_file = st.file_uploader("Upload a CSV file with transactions", type="csv")
 
-    result, threshold = detect_fraud(df)
+    if uploaded_file is not None:
+        df = pd.read_csv(uploaded_file)
+        df = df.drop(columns=["Transaction ID", "Timestamp", "Sender Name", "Receiver Name"])
+        df['Sender UPI ID'] = pd.factorize(df['Sender UPI ID'])[0]
+        df['Receiver UPI ID'] = pd.factorize(df['Receiver UPI ID'])[0]
 
-    st.subheader("🔢 Prediction Results")
-    st.write(result[['Sender UPI ID', 'Receiver UPI ID', 'Amount (INR)', 'Prediction']])
+        result, threshold = detect_fraud(df)
 
-    fraud_count = result['Prediction'].value_counts()
-    st.bar_chart(fraud_count)
+        st.subheader("🔢 Prediction Results")
+        st.write(result[['Sender UPI ID', 'Receiver UPI ID', 'Amount (INR)', 'Prediction']])
 
-    st.subheader("📊 Reconstruction Error Distribution")
-    fig, ax = plt.subplots()
-    sns.histplot(result['Reconstruction Error'], bins=50, kde=True, ax=ax)
-    ax.axvline(threshold, color='red', linestyle='--', label=f'Threshold')
-    ax.set_title("Reconstruction Error vs Frequency")
-    ax.legend()
-    st.pyplot(fig)
+        fraud_count = result['Prediction'].value_counts()
+        st.bar_chart(fraud_count)
 
-    st.download_button("Download Results as CSV", result.to_csv(index=False), "predictions.csv", "text/csv")
+        st.subheader("📊 Reconstruction Error Distribution")
+        fig, ax = plt.subplots()
+        sns.histplot(result['Reconstruction Error'], bins=50, kde=True, ax=ax)
+        ax.axvline(threshold, color='red', linestyle='--', label=f'Threshold')
+        ax.set_title("Reconstruction Error vs Frequency")
+        ax.legend()
+        st.pyplot(fig)
 
-# Manual entry section
-st.markdown("---")
-st.header("📝 Manual Transaction Check")
+        st.download_button("Download Results as CSV", result.to_csv(index=False), "predictions.csv", "text/csv")
 
-with st.form("manual_input"):
-    sender = st.text_input("Sender UPI ID", "user1@upi")
-    receiver = st.text_input("Receiver UPI ID", "merchant@upi")
-    amount = st.number_input("Amount (INR)", min_value=0.01, step=0.01)
-    submitted = st.form_submit_button("Check Transaction")
+elif approach == "📝 Manual Entry":
+    st.subheader("📝 Manual Transaction Check")
 
-    if submitted:
-        prediction, error, threshold = predict_transaction(sender, receiver, amount)
-        st.markdown(f"### 🧾 Prediction: **{prediction}**")
-        st.markdown(f"- Reconstruction Error: `{error:.6f}`")
-        st.markdown(f"- Threshold: `{threshold:.6f}`")
+    with st.form("manual_input"):
+        sender = st.text_input("Sender UPI ID", "user1@upi")
+        receiver = st.text_input("Receiver UPI ID", "merchant@upi")
+        amount = st.number_input("Amount (INR)", min_value=0.01, step=0.01)
+        submitted = st.form_submit_button("Check Transaction")
 
-        fig2, ax2 = plt.subplots()
-        sns.barplot(x=["Reconstruction Error", "Threshold"], y=[error, threshold], ax=ax2)
-        ax2.set_title("Error vs Threshold")
-        st.pyplot(fig2)
+        if submitted:
+            prediction, error, threshold = predict_transaction(sender, receiver, amount)
+            st.markdown(f"### 🧾 Prediction: **{prediction}**")
+            st.markdown(f"- Reconstruction Error: `{error:.6f}`")
+            st.markdown(f"- Threshold: `{threshold:.6f}`")
+
+            fig2, ax2 = plt.subplots()
+            sns.barplot(x=["Reconstruction Error", "Threshold"], y=[error, threshold], ax=ax2)
+            ax2.set_title("Error vs Threshold")
+            st.pyplot(fig2)
