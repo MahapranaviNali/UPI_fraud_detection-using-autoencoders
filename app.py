@@ -10,7 +10,7 @@ from tensorflow.keras.models import load_model
 
 # Load the scaler and model
 scaler = joblib.load("scaler.pkl")
-model = load_model("autoencoder_model.h5")
+model = load_model("autoencoder_model.h5", compile=False)
 
 def detect_fraud(data):
     X = data[['Sender UPI ID', 'Receiver UPI ID', 'Amount (INR)']]
