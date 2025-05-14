@@ -1,0 +1,22 @@
+/* style.css */
+body {
+    background-color: #f9f9f9;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+h1, h2, h3, h4, h5 {
+    color: #2c3e50;
+}
+
+.stButton > button {
+    background-color: #3498db;
+    color: white;
+    border-radius: 8px;
+    padding: 0.5em 1em;
+}
+
+.stDataFrame {
+    background-color: #ffffff;
+    border-radius: 8px;
+    padding: 1em;
+}
