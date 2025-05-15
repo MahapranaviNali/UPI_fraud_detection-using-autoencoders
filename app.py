@@ -9,6 +9,7 @@ import pickle
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, classification_report
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier, IsolationForest
+from sklearn.model_selection import train_test_split
 from tensorflow.keras.models import load_model
 
 # Load the scaler and model
@@ -50,25 +51,30 @@ def evaluate_models(X_train, y_train, X_test, y_test):
 
     iso_forest = IsolationForest(contamination=0.05, random_state=42)
     iso_forest.fit(X_train)
-    y_iso = iso_forest.predict(X_test)
-    y_iso = [1 if p == -1 else 0 for p in y_iso]
+    iso_preds_raw = iso_forest.predict(X_test)
+    y_iso = [1 if p == -1 else 0 for p in iso_preds_raw]
 
     models = {
-        "Autoencoder": y_pred_global,
         "Logistic Regression": y_log,
         "Random Forest": y_rf,
         "Isolation Forest": y_iso
     }
 
+    comparison = {}
     for name, pred in models.items():
-        results[name] = {
-            "Accuracy": accuracy_score(y_test, pred),
-            "Precision": precision_score(y_test, pred),
-            "Recall": recall_score(y_test, pred),
-            "F1 Score": f1_score(y_test, pred)
-        }
+        if len(pred) == len(y_test):
+            comparison[name] = {
+                "Accuracy": accuracy_score(y_test, pred),
+                "Precision": precision_score(y_test, pred),
+                "Recall": recall_score(y_test, pred),
+                "F1 Score": f1_score(y_test, pred)
+            }
+        else:
+            comparison[name] = {
+                "Error": f"Inconsistent prediction size: {len(pred)} vs y_test {len(y_test)}"
+            }
 
-    return pd.DataFrame(results).T
+    return pd.DataFrame(comparison).T
 
 st.set_page_config(page_title="UPI Fraud Detection", layout="wide")
 st.title("🔒 UPI Fraud Detection using Autoencoder")
@@ -104,9 +110,9 @@ if approach == "📁 CSV Upload":
         ax.legend()
         st.pyplot(fig)
 
-        # If actual labels exist in CSV
         if 'Status' in df.columns:
             y_true = df['Status'].apply(lambda x: 1 if x == 'FAILED' else 0)
+
             st.subheader("📈 Model Evaluation Metrics")
             accuracy = accuracy_score(y_true, y_pred)
             precision = precision_score(y_true, y_pred)
@@ -119,13 +125,22 @@ if approach == "📁 CSV Upload":
             st.write("📊 Classification Report")
             st.json(classification_report(y_true, y_pred, output_dict=True))
 
-            # Compare with traditional models
             st.subheader("🤖 Comparison with Traditional Models")
             X = df[['Sender UPI ID', 'Receiver UPI ID', 'Amount (INR)']]
             X_scaled = scaler.transform(X)
-            from sklearn.model_selection import train_test_split
             X_train, X_test, y_train, y_test = train_test_split(X_scaled, y_true, test_size=0.2, random_state=42)
+
             comparison_df = evaluate_models(X_train, y_train, X_test, y_test)
+
+            if len(y_pred_global) == len(y_true):
+                auto_scores = {
+                    "Accuracy": accuracy_score(y_true, y_pred_global),
+                    "Precision": precision_score(y_true, y_pred_global),
+                    "Recall": recall_score(y_true, y_pred_global),
+                    "F1 Score": f1_score(y_true, y_pred_global)
+                }
+                comparison_df.loc["Autoencoder"] = auto_scores
+
             st.write(comparison_df)
 
         st.download_button("Download Results as CSV", result.to_csv(index=False), "predictions.csv", "text/csv")
