@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import joblib
 import pickle
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, classification_report
 from tensorflow.keras.models import load_model
 
 # Load the scaler and model
@@ -18,10 +19,10 @@ def detect_fraud(data):
     X_pred = model.predict(X_scaled)
     mse = np.mean(np.power(X_scaled - X_pred, 2), axis=1)
     threshold = 0.95 * np.max(mse)
-    y_pred = ["FRAUD" if e > threshold else "LEGIT" for e in mse]
-    data['Prediction'] = y_pred
+    y_pred = [1 if e > threshold else 0 for e in mse]
+    data['Prediction'] = ['FRAUD' if val == 1 else 'LEGIT' for val in y_pred]
     data['Reconstruction Error'] = mse
-    return data, threshold
+    return data, threshold, y_pred
 
 def predict_transaction(sender_upi, receiver_upi, amount):
     sender_encoded = abs(hash(sender_upi)) % (10**6)
@@ -45,11 +46,11 @@ if approach == "📁 CSV Upload":
 
     if uploaded_file is not None:
         df = pd.read_csv(uploaded_file)
-        df = df.drop(columns=["Transaction ID", "Timestamp", "Sender Name", "Receiver Name"])
+        df = df.drop(columns=["Transaction ID", "Timestamp", "Sender Name", "Receiver Name"], errors='ignore')
         df['Sender UPI ID'] = pd.factorize(df['Sender UPI ID'])[0]
         df['Receiver UPI ID'] = pd.factorize(df['Receiver UPI ID'])[0]
 
-        result, threshold = detect_fraud(df)
+        result, threshold, y_pred = detect_fraud(df)
 
         st.subheader("🔢 Prediction Results")
         st.write(result[['Sender UPI ID', 'Receiver UPI ID', 'Amount (INR)', 'Prediction']])
@@ -64,6 +65,21 @@ if approach == "📁 CSV Upload":
         ax.set_title("Reconstruction Error vs Frequency")
         ax.legend()
         st.pyplot(fig)
+
+        # If actual labels exist in CSV
+        if 'Status' in df.columns:
+            y_true = df['Status'].apply(lambda x: 1 if x == 'FAILED' else 0)
+            st.subheader("📈 Model Evaluation Metrics")
+            accuracy = accuracy_score(y_true, y_pred)
+            precision = precision_score(y_true, y_pred)
+            recall = recall_score(y_true, y_pred)
+            f1 = f1_score(y_true, y_pred)
+            st.markdown(f"**Accuracy:** `{accuracy:.2f}`")
+            st.markdown(f"**Precision:** `{precision:.2f}`")
+            st.markdown(f"**Recall:** `{recall:.2f}`")
+            st.markdown(f"**F1 Score:** `{f1:.2f}`")
+            st.write("📊 Classification Report")
+            st.json(classification_report(y_true, y_pred, output_dict=True))
 
         st.download_button("Download Results as CSV", result.to_csv(index=False), "predictions.csv", "text/csv")
 
