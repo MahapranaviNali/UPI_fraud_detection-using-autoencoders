@@ -7,6 +7,8 @@ import seaborn as sns
 import joblib
 import pickle
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, classification_report
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier, IsolationForest
 from tensorflow.keras.models import load_model
 
 # Load the scaler and model
@@ -35,11 +37,46 @@ def predict_transaction(sender_upi, receiver_upi, amount):
     prediction = "FRAUD" if mse[0] > threshold else "LEGIT"
     return prediction, mse[0], threshold
 
+def evaluate_models(X_train, y_train, X_test, y_test):
+    results = {}
+
+    log_reg = LogisticRegression()
+    log_reg.fit(X_train, y_train)
+    y_log = log_reg.predict(X_test)
+
+    rf = RandomForestClassifier(n_estimators=100, random_state=42)
+    rf.fit(X_train, y_train)
+    y_rf = rf.predict(X_test)
+
+    iso_forest = IsolationForest(contamination=0.05, random_state=42)
+    iso_forest.fit(X_train)
+    y_iso = iso_forest.predict(X_test)
+    y_iso = [1 if p == -1 else 0 for p in y_iso]
+
+    models = {
+        "Autoencoder": y_pred_global,
+        "Logistic Regression": y_log,
+        "Random Forest": y_rf,
+        "Isolation Forest": y_iso
+    }
+
+    for name, pred in models.items():
+        results[name] = {
+            "Accuracy": accuracy_score(y_test, pred),
+            "Precision": precision_score(y_test, pred),
+            "Recall": recall_score(y_test, pred),
+            "F1 Score": f1_score(y_test, pred)
+        }
+
+    return pd.DataFrame(results).T
+
 st.set_page_config(page_title="UPI Fraud Detection", layout="wide")
 st.title("🔒 UPI Fraud Detection using Autoencoder")
 
 # User selects approach
 approach = st.radio("Choose Input Method:", ("📁 CSV Upload", "📝 Manual Entry"))
+
+y_pred_global = []
 
 if approach == "📁 CSV Upload":
     uploaded_file = st.file_uploader("Upload a CSV file with transactions", type="csv")
@@ -51,6 +88,7 @@ if approach == "📁 CSV Upload":
         df['Receiver UPI ID'] = pd.factorize(df['Receiver UPI ID'])[0]
 
         result, threshold, y_pred = detect_fraud(df)
+        y_pred_global = y_pred.copy()
 
         st.subheader("🔢 Prediction Results")
         st.write(result[['Sender UPI ID', 'Receiver UPI ID', 'Amount (INR)', 'Prediction']])
@@ -80,6 +118,15 @@ if approach == "📁 CSV Upload":
             st.markdown(f"**F1 Score:** `{f1:.2f}`")
             st.write("📊 Classification Report")
             st.json(classification_report(y_true, y_pred, output_dict=True))
+
+            # Compare with traditional models
+            st.subheader("🤖 Comparison with Traditional Models")
+            X = df[['Sender UPI ID', 'Receiver UPI ID', 'Amount (INR)']]
+            X_scaled = scaler.transform(X)
+            from sklearn.model_selection import train_test_split
+            X_train, X_test, y_train, y_test = train_test_split(X_scaled, y_true, test_size=0.2, random_state=42)
+            comparison_df = evaluate_models(X_train, y_train, X_test, y_test)
+            st.write(comparison_df)
 
         st.download_button("Download Results as CSV", result.to_csv(index=False), "predictions.csv", "text/csv")
 
